@@ -1,6 +1,6 @@
-#Shine
+# Shine
 
-#####Solaris Husk Intelligence
+##### Solaris Husk Intelligence
 
 Coming soon...
 
