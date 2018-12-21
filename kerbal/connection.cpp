@@ -20,6 +20,8 @@
 #include <krpc.hpp>
 #include <krpc/services/krpc.hpp>
 #include <krpc/services/space_center.hpp>
+#include <chrono>
+
 
 
 const std::string NAME = "Husk Intelligence " + VERSION_STR;
@@ -44,32 +46,43 @@ int connection::tryConnection() {
     return 0;
 }
 
+std::chrono::time_point lastTelemetryRead = std::chrono::high_resolution_clock::now();
+shipTelemetry *lastShipTelemetry = new shipTelemetry;
+const double MINUPDATEINTERVAL = 0.25;
+
 struct shipTelemetry* connection::getShipTelemetry() {
 
-    krpc::services::SpaceCenter sc(&krpcConnection);
+    // Stop too often telemetry reads crashing the bot by getting errors in krpc.
+    std::chrono::time_point now = std::chrono::high_resolution_clock::now();
+    if ( std::chrono::duration<double> (now - lastTelemetryRead).count() < MINUPDATEINTERVAL) {
+        return lastShipTelemetry;
+    }
 
-    shipTelemetry *st = new shipTelemetry;
+
+    krpc::services::SpaceCenter sc(&krpcConnection);
+    lastShipTelemetry = new shipTelemetry;
     auto vessel = sc.active_vessel();
     auto orbit = vessel.orbit();
     //auto flight = vessel.flight();
 
-    st->gForce = -1;
-    st->altitude = -1;
-    st->longitude = -1;
-    st->latitude = -1;
+    lastShipTelemetry->gForce = -1;
+    lastShipTelemetry->altitude = -1;
+    lastShipTelemetry->longitude = -1;
+    lastShipTelemetry->latitude = -1;
 
-    st->name = vessel.name();
-    st->time = vessel.met();
-    st->stageNum = -1;
-    st->totalStages = -1;
+    lastShipTelemetry->name = vessel.name();
+    lastShipTelemetry->time = vessel.met();
+    lastShipTelemetry->stageNum = -1;
+    lastShipTelemetry->totalStages = -1;
 
-    st->velocity = orbit.speed();
-    st->apoapsis = orbit.apoapsis();
-    st->periapsis = orbit.periapsis();
-    st->eccentricity = orbit.eccentricity();
-    st->inclination = orbit.inclination();
+    lastShipTelemetry->velocity = orbit.speed();
+    lastShipTelemetry->apoapsis = orbit.apoapsis();
+    lastShipTelemetry->periapsis = orbit.periapsis();
+    lastShipTelemetry->eccentricity = orbit.eccentricity();
+    lastShipTelemetry->inclination = orbit.inclination();
+    lastTelemetryRead = std::chrono::high_resolution_clock::now();
 
-    return st;
+    return lastShipTelemetry;
 }
 
 

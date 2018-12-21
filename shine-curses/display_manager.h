@@ -56,9 +56,11 @@ private:
     int getUserInput();
 
     void drawTelemetry(struct displayTelemetry *t);
-    void drawDataElement(std::string dataType, std::string processedValue, int intensity = 0);
+    void drawDataElement(std::string dataType, std::string processedValue, int intensity = 1);
     void getDrawUserInput();
     void clearStatsLines();
+    int getNextTab(int y, int x);
+    void chronoSleep(int uSecs);
 
     int parseUserInput(std::string UI);
 
@@ -67,6 +69,7 @@ private:
 
 
     std::string userInput;
+
 
 
 

@@ -24,7 +24,8 @@ const int UPDATETIME = 100000;
 const int KEYREADTIME = 10000;
 const int ERRORFRAMES = 50;
 
-const int TABLENGTH = 5;
+const int TABLENGTH = 10;
+
 
 
 
@@ -63,12 +64,7 @@ void display_manager::startDisplay() {
 
 
 void display_manager::kspTelemetry() {
-    int sleepTime = 0;
     while (true) {
-        while (sleepTime < UPDATETIME) {
-            sleepTime += UPDATETIME;
-        }
-        sleepTime = 0;
 
 
         drawKspTelemetry();
@@ -79,6 +75,7 @@ void display_manager::kspTelemetry() {
         getDrawUserInput();
 
         usleep(UPDATETIME);
+        // chronoSleep(UPDATETIME);
 
     }
 }
@@ -170,17 +167,11 @@ void display_manager::drawTelemetry(struct displayTelemetry *t) {
 
     clearStatsLines();
 
-    move(2, 0);
-    printw("Vessel: ");
-    printw(t->name.c_str());
-    move(3, 0);
+    move(1, 0);
+    drawDataElement("Vessel:", t->name, 3);
+    drawDataElement("Mission Time:", std::to_string(t->time), 3);
+    drawDataElement("Orbit velocity:", std::to_string(t->velocity), 2);
 
-    printw("Mission Time: ");
-    printw(std::to_string(t->time).c_str());
-
-    move(4, 0);
-    printw("Orbit velocity: ");
-    printw(std::to_string(t->velocity).c_str());
 
 }
 
@@ -189,7 +180,20 @@ int display_manager::getUserInput() {
 }
 
 void display_manager::drawDataElement(std::string dataType, std::string processedValue, int intensity) {
+    int y, x;
+    getyx(stdscr, y, x);
+    int nextTab = getNextTab(y, x);
+    if (nextTab == 0) {
+        move( (y + 1), 0);
+    } else {
+        move(y, nextTab);
+    }
 
+    printw(dataType.c_str());
+    printw("  ");
+    attron(COLOR_PAIR(intensity));
+    printw(processedValue.c_str());
+    attron(COLOR_PAIR(1));
 
 }
 
@@ -208,4 +212,35 @@ void display_manager::clearStatsLines() {
             clrtoeol();
         }
     }
+}
+
+// If on new line stay there. Otherwise go forward by up to 2 tabs.
+int display_manager::getNextTab(int y, int x) {
+    // Only happens when starting out, go to next page.
+    if (x == 0) {
+        return 0;
+    }
+
+    // Current x value is too large so go to next page
+    if ( (x + (3 * TABLENGTH + 5)) >= COLS) {
+        return 0;
+    }
+    int c = x % TABLENGTH;
+    if (c == 0) {
+        return x + 20;
+    } else {
+        return x + 10 + (10 - c);
+    }
+}
+
+void display_manager::chronoSleep(int uSecs) {
+    double secs = (double) uSecs / 1000000.0;
+    std::chrono::time_point start = std::chrono::high_resolution_clock::now();
+    std::chrono::time_point end = start;
+    do {
+        usleep(uSecs);
+        end = std::chrono::high_resolution_clock::now();
+    }
+    while (std::chrono::duration<double> (start - end).count() < secs);
+
 }
