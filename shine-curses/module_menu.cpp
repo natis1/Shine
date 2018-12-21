@@ -25,6 +25,20 @@
 const int MENU_DISPLAY_HEIGHT = 5;
 const int CENTER = 29;
 
+void module_menu::signalHandler(int sig) {
+    if (sig == SIGABRT || sig == SIGKILL || sig == SIGSEGV) {
+        endwin();
+        return;
+    } else if (sig == SIGTSTP) {
+        std::cout << "Shine client paused. Resume with the \"fg\" command." << std::endl;
+        endwin();
+        return;
+    }
+
+
+
+}
+
 module_menu::module_menu() {
     initDisplay();
     drawMenu();
@@ -35,6 +49,7 @@ module_menu::module_menu() {
         switch (getch()) {
             case 'q':
             case 'Q':
+                endwin();
                 exit(0);
             case 'k':
             case 'K':
@@ -73,6 +88,12 @@ int module_menu::initDisplay()
     cbreak();
     noecho();
     start_color();
+    signal(SIGABRT, module_menu::signalHandler);
+    signal(SIGKILL, module_menu::signalHandler);
+    signal(SIGTSTP, module_menu::signalHandler);
+    signal(SIGSEGV, module_menu::signalHandler);
+
+
     return 0;
 }
 

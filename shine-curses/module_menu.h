@@ -24,6 +24,7 @@
 class module_menu {
 public:
     module_menu();
+    static void signalHandler(int sig);
 
 private:
     int initDisplay();

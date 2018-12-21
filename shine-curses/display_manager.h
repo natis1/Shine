@@ -56,7 +56,17 @@ private:
     int getUserInput();
 
     void drawTelemetry(struct displayTelemetry *t);
+    void drawDataElement(std::string dataType, std::string processedValue, int intensity = 0);
+    void getDrawUserInput();
+    void clearStatsLines();
+
+    int parseUserInput(std::string UI);
+
     Module loadedMod;
+    int errDisplayFrames;
+
+
+    std::string userInput;
 
 
 
