@@ -19,6 +19,7 @@
 #include "../kerbal/connection.h"
 #include "display_manager.h"
 #include <unistd.h>
+#include <sstream>
 
 const int UPDATETIME = 100000;
 const int KEYREADTIME = 10000;
@@ -26,7 +27,7 @@ const int ERRORFRAMES = 50;
 
 const int TABLENGTH = 10;
 
-
+int display_manager::telemetryType = 0;
 
 
 display_manager::display_manager(display_manager::Module m) {
@@ -36,9 +37,12 @@ display_manager::display_manager(display_manager::Module m) {
 void display_manager::startDisplay() {
 
     userInput = "";
+    telemetryType = 0;
+
+    signal(SIGABRT, display_manager::sigabrtHandler);
 
     // 1 Normal
-    // 2 Good (Based on protium crystal color. See )
+    // 2 Good (Based on protium crystal color. See Half-Rose's drawings)
     // 3 Alright/neutral
     // 4 Warning
     // 5 Danger
@@ -55,6 +59,9 @@ void display_manager::startDisplay() {
     init_pair(7, COLOR_BLACK, COLOR_YELLOW);
     init_pair(8, COLOR_GREEN, COLOR_BLACK);
 
+    printHelpMenu();
+    move(0, 0);
+
     nodelay(stdscr, true);
 
     if (loadedMod == ksp) {
@@ -66,15 +73,25 @@ void display_manager::startDisplay() {
 void display_manager::kspTelemetry() {
     while (true) {
 
+        if (telemetryType == 1) {
 
-        drawKspTelemetry();
+            try {
+                drawKspVesselTelemetry();
+            } catch (std::exception e) {
+                move(LINES - 2, 0);
+                printw(e.what());
+                telemetryType = 0;
+            }
 
-        if (getUserInput() == 1) {
+        }
+
+        if (telemetryType == -1) {
             break;
         }
         getDrawUserInput();
 
         usleep(UPDATETIME);
+
         // chronoSleep(UPDATETIME);
 
     }
@@ -88,17 +105,14 @@ void display_manager::getDrawUserInput() {
 
         } else if (c == KEY_ENTER || c == 10) {
 
-            int errCode = parseUserInput(userInput);
-            if (errCode != 0) {
+            std::string errorCode = parseUserInput(userInput);
+            if (errorCode != "") {
                 errDisplayFrames = ERRORFRAMES;
-            }
-
-            if (errCode == 1) {
                 move(LINES - 2, 0);
                 attron(COLOR_PAIR(6));
-                printw("Command not found: ");
-                if (userInput.size() > COLS - 19) {
-                    userInput = userInput.substr(0, COLS - 19);
+                printw(errorCode.c_str());
+                if (userInput.size() > COLS - errorCode.length()) {
+                    userInput = userInput.substr(0, COLS - errorCode.length());
                 }
                 attron(COLOR_PAIR(5));
                 printw(userInput.c_str());
@@ -136,7 +150,7 @@ void display_manager::getDrawUserInput() {
 
 }
 
-void display_manager::drawKspTelemetry() {
+void display_manager::drawKspVesselTelemetry() {
     shipTelemetry *t = kerbalConnection->getShipTelemetry();
     displayTelemetry *d = new displayTelemetry {
         // vessel data
@@ -175,10 +189,6 @@ void display_manager::drawTelemetry(struct displayTelemetry *t) {
 
 }
 
-int display_manager::getUserInput() {
-    return 0;
-}
-
 void display_manager::drawDataElement(std::string dataType, std::string processedValue, int intensity) {
     int y, x;
     getyx(stdscr, y, x);
@@ -197,12 +207,62 @@ void display_manager::drawDataElement(std::string dataType, std::string processe
 
 }
 
-int display_manager::parseUserInput(std::string UI) {
-    if (UI == "ERROR") {
-        return 1;
+std::string display_manager::parseUserInput(std::string UI) {
+    std::string buffer;
+
+    /*
+     * Wingshade keyboards do not have lowercase characters on account of their language not distinguishing between
+     * cases. Although the more common moth language does have case sensitivity, we must account for users who are
+     * using devices without this functionality. Thus ALL commands must be made to work without case sensitivity.
+     *
+     * So that's why all strings are first converted to lowercase. The original case is preserved when printing
+     * the error tho, so the user can see exactly what they entered.
+     */
+    std::transform(UI.begin(), UI.end(), UI.begin(), ::tolower);
+
+    std::stringstream stream(UI);
+
+    std::vector<std::string> tokens;
+
+    while (stream >> buffer) {
+        tokens.push_back(buffer);
     }
 
-    return 0;
+    // Safety
+    if (tokens.size() == 0) {
+        return "";
+    }
+
+    if (tokens.at(0) == "help") {
+        pausePrintHelpMenu();
+    }
+
+    if (tokens.at(0) == "vessel") {
+        if (tokens.size() < 2) {
+            return "Usage: vessel [connect/disconnect/list]";
+        } else {
+            if (tokens.at(1) == "connect" && telemetryType == 0) {
+                telemetryType = 1;
+                return "";
+            } else if (tokens.at(1) == "disconnect") {
+                telemetryType = 0;
+                return "";
+            } else if (tokens.at(1) == "list") {
+                return "not implemented yet: ";
+            } else {
+                return "Usage: vessel [connect/disconnect/list]";
+            }
+
+        }
+    }
+
+
+
+    if (tokens.at(0) == "error") {
+        return "Intentional error created: ";
+    }
+
+    return "";
 }
 
 void display_manager::clearStatsLines() {
@@ -243,4 +303,36 @@ void display_manager::chronoSleep(int uSecs) {
     }
     while (std::chrono::duration<double> (start - end).count() < secs);
 
+}
+
+void display_manager::sigabrtHandler(int sigabrt) {
+    if (telemetryType > 0) {
+        telemetryType = 0;
+    } else {
+        telemetryType = -1;
+    }
+}
+
+void display_manager::printHelpMenu() {
+    move (3, 0);
+    drawDataElement("help - ", "Display this menu", 7);
+    drawDataElement("vessel connect - ", "Connect to the current vessel", 7);
+    drawDataElement("vessel disconnect - ", "Disconnect from a vessel", 7);
+    drawDataElement("vessel list - ", "List all vessels", 7);
+    drawDataElement("error - ", "Intentionally create error.", 7);
+    refresh();
+
+}
+
+void display_manager::pausePrintHelpMenu() {
+    nodelay(stdscr, false);
+    move (0, 0);
+    printw("Help Menu, press any key to return.");
+    printHelpMenu();
+    move(0, 0);
+    getch();
+    move(0, 0);
+    clrtoeol();
+    clearStatsLines();
+    nodelay(stdscr, true);
 }

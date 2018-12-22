@@ -28,6 +28,9 @@ public:
     connection *kerbalConnection;
     void startDisplay();
 
+protected:
+    static int telemetryType;
+
 private:
     struct displayTelemetry {
     public:
@@ -51,9 +54,10 @@ private:
         double inclination;
     };
 
+    static void sigabrtHandler(int sigabrt);
+
     void kspTelemetry();
-    void drawKspTelemetry();
-    int getUserInput();
+    void drawKspVesselTelemetry();
 
     void drawTelemetry(struct displayTelemetry *t);
     void drawDataElement(std::string dataType, std::string processedValue, int intensity = 1);
@@ -62,7 +66,10 @@ private:
     int getNextTab(int y, int x);
     void chronoSleep(int uSecs);
 
-    int parseUserInput(std::string UI);
+    std::string parseUserInput(std::string UI);
+
+    void printHelpMenu();
+    void pausePrintHelpMenu();
 
     Module loadedMod;
     int errDisplayFrames;
