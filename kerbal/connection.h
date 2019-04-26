@@ -19,17 +19,40 @@
 #ifndef SHINE_CONNECTION_H
 #define SHINE_CONNECTION_H
 
-
 #include <krpc/client.hpp>
-#include "globals.h"
 
+static std::chrono::time_point lastTelemetryRead = std::chrono::high_resolution_clock::now();
 class connection {
 public:
     int tryConnection();
-    struct shipTelemetry *getShipTelemetry();
+
+    // vessel data
+    std::string shipTelemetry_name;
+    std::string shipTelemetry_realTime;
+    double shipTelemetry_time;
+    int shipTelemetry_stageNum;
+    int shipTelemetry_totalStages;
+
+    // flight data
+    float shipTelemetry_gForce;
+    double shipTelemetry_altitude;
+    double shipTelemetry_latitude;
+    double shipTelemetry_longitude;
+
+    // orbit data
+    double shipTelemetry_velocity; // With respect to the current ref frame.
+    double shipTelemetry_apoapsis;
+    double shipTelemetry_periapsis;
+    double shipTelemetry_eccentricity;
+    double shipTelemetry_inclination;
+
+    void getShipTelemetry();
 
 
     krpc::Client krpcConnection;
+    void resetTelemetry();
+
+
 };
 
 

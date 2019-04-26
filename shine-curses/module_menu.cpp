@@ -47,17 +47,18 @@ module_menu::module_menu() {
 
     while (true) {
         switch (getch()) {
+            default: break;
             case 'q':
             case 'Q':
                 endwin();
-                exit(0);
+                return;
             case 'k':
             case 'K':
                 clear();
                 move(0, 0);
                 printw("Attempting connection... Please accept in KSP.");
                 refresh();
-                connection *c = new connection;
+                auto *c = new connection;
                 bool b = c->tryConnection() == 0;
 
                 if (!b) {
@@ -67,9 +68,7 @@ module_menu::module_menu() {
                 } else {
                     clear();
                     refresh();
-                    display_manager *dm = new display_manager(display_manager::ksp);
-                    dm->kerbalConnection = c;
-                    dm->startDisplay();
+                    display_manager::loadKSP(display_manager::ksp, c);
                 }
                 break;
         }
@@ -101,9 +100,9 @@ void module_menu::drawMenu() {
     move(MENU_DISPLAY_HEIGHT, 35);
     printw("Shine Modules:");
     move(MENU_DISPLAY_HEIGHT + 4, CENTER);
-    printw("[K]erbal space program");
+    printw("[K] - Kerbal space program");
     move(MENU_DISPLAY_HEIGHT + 5, CENTER);
-    printw("[Q]uit Shine.");
+    printw("[Q] - Quit Shine.");
     move(0, 0);
 }
 

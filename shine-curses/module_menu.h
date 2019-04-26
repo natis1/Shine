@@ -27,8 +27,8 @@ public:
     static void signalHandler(int sig);
 
 private:
-    int initDisplay();
-    void drawMenu();
+    static int initDisplay();
+    static void drawMenu();
 };
 
 

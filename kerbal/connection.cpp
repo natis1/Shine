@@ -20,14 +20,17 @@
 #include <krpc.hpp>
 #include <krpc/services/krpc.hpp>
 #include <krpc/services/space_center.hpp>
-#include <chrono>
+#include <iostream>
+#include <ctime>
+#include <iomanip>
 
 
-
-const std::string NAME = "Husk Intelligence " + VERSION_STR;
+std::string NAME() {
+    return "Husk Intelligence 0.0.1";
+}
 
 // TODO: Make configurable
-const std::string ADDR = "127.0.0.1";
+const char* ADDR = "127.0.0.1";
 const uint RPC_PORT = 50000;
 const uint STREAM_PORT = 50001;
 
@@ -35,10 +38,10 @@ const uint STREAM_PORT = 50001;
 
 int connection::tryConnection() {
     try {
-        krpcConnection = krpc::connect(NAME, ADDR, RPC_PORT, STREAM_PORT);
+        krpcConnection = krpc::connect(NAME(), ADDR, RPC_PORT, STREAM_PORT);
         krpc::services::KRPC krpc(&krpcConnection);
         std::cout << krpc.get_status().version() << std::endl;
-    } catch (std::system_error e) {
+    } catch (const std::system_error& e) {
         std::cerr << "Unable to connect to krpc server." << std::endl;
         return 1;
     }
@@ -46,43 +49,62 @@ int connection::tryConnection() {
     return 0;
 }
 
-std::chrono::time_point lastTelemetryRead = std::chrono::high_resolution_clock::now();
-shipTelemetry *lastShipTelemetry = new shipTelemetry;
-const double MINUPDATEINTERVAL = 0.25;
-
-struct shipTelemetry* connection::getShipTelemetry() {
-
-    // Stop too often telemetry reads crashing the bot by getting errors in krpc.
-    std::chrono::time_point now = std::chrono::high_resolution_clock::now();
-    if ( std::chrono::duration<double> (now - lastTelemetryRead).count() < MINUPDATEINTERVAL) {
-        return lastShipTelemetry;
-    }
 
 
-    krpc::services::SpaceCenter sc(&krpcConnection);
-    lastShipTelemetry = new shipTelemetry;
-    auto vessel = sc.active_vessel();
-    auto orbit = vessel.orbit();
-    //auto flight = vessel.flight();
+void connection::getShipTelemetry() {
 
-    lastShipTelemetry->gForce = -1;
-    lastShipTelemetry->altitude = -1;
-    lastShipTelemetry->longitude = -1;
-    lastShipTelemetry->latitude = -1;
+    auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%H:%M:%S");
+    shipTelemetry_realTime = oss.str();
 
-    lastShipTelemetry->name = vessel.name();
-    lastShipTelemetry->time = vessel.met();
-    lastShipTelemetry->stageNum = -1;
-    lastShipTelemetry->totalStages = -1;
+        krpc::services::SpaceCenter sc(&krpcConnection);
+        auto vessel = sc.active_vessel();
+        auto orbit = vessel.orbit();
 
-    lastShipTelemetry->velocity = orbit.speed();
-    lastShipTelemetry->apoapsis = orbit.apoapsis();
-    lastShipTelemetry->periapsis = orbit.periapsis();
-    lastShipTelemetry->eccentricity = orbit.eccentricity();
-    lastShipTelemetry->inclination = orbit.inclination();
-    lastTelemetryRead = std::chrono::high_resolution_clock::now();
+        //auto flight = vessel.flight();
 
-    return lastShipTelemetry;
+        shipTelemetry_gForce = -1;
+        shipTelemetry_altitude = -1;
+        shipTelemetry_longitude = -1;
+        shipTelemetry_latitude = -1;
+
+        shipTelemetry_name = vessel.name();
+        shipTelemetry_time = vessel.met();
+        shipTelemetry_stageNum = -1;
+        shipTelemetry_totalStages = -1;
+
+        shipTelemetry_velocity = orbit.speed();
+        shipTelemetry_apoapsis = orbit.apoapsis();
+        shipTelemetry_periapsis = orbit.periapsis();
+        shipTelemetry_eccentricity = orbit.eccentricity();
+        shipTelemetry_inclination = orbit.inclination();
+
+}
+
+void connection::resetTelemetry() {
+    auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%H:%M:%S");
+    shipTelemetry_name = "No vessel loaded. Please wait";
+    std::string s = oss.str();
+    shipTelemetry_realTime = s.c_str();
+    shipTelemetry_gForce = -1;
+    shipTelemetry_altitude = -1;
+    shipTelemetry_longitude = -1;
+    shipTelemetry_latitude = -1;
+
+    shipTelemetry_time = -1;
+    shipTelemetry_stageNum = -1;
+    shipTelemetry_totalStages = -1;
+
+    shipTelemetry_velocity = -1;
+    shipTelemetry_apoapsis = -1;
+    shipTelemetry_periapsis = -1;
+    shipTelemetry_eccentricity = -1;
+    shipTelemetry_inclination = -1;
 }
 
 

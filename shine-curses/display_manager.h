@@ -21,66 +21,38 @@
 
 #include "ncurses.h"
 
-class display_manager {
-public:
+namespace  display_manager {
     enum Module { ksp, other };
-    display_manager(Module m);
-    connection *kerbalConnection;
+
     void startDisplay();
 
-protected:
     static int telemetryType;
-
-private:
-    struct displayTelemetry {
-    public:
-        // vessel data
-        std::string name;
-        double time;
-        int stageNum;
-        int totalStages;
-
-        // flight data
-        float gForce;
-        double altitude;
-        double latitude;
-        double longitude;
-
-        // orbit data
-        double velocity; // With respect to the current ref frame.
-        double apoapsis;
-        double periapsis;
-        double eccentricity;
-        double inclination;
-    };
 
     static void sigabrtHandler(int sigabrt);
 
     void kspTelemetry();
     void drawKspVesselTelemetry();
 
-    void drawTelemetry(struct displayTelemetry *t);
-    void drawDataElement(std::string dataType, std::string processedValue, int intensity = 1);
+    void drawTelemetry();
+    void drawDataElement(const std::string& dataType, const std::string& processedValue, uint intensity = 1);
     void getDrawUserInput();
     void clearStatsLines();
-    int getNextTab(int y, int x);
+    int getNextTab(int y, int x, int msgLength);
     void chronoSleep(int uSecs);
 
     std::string parseUserInput(std::string UI);
 
+    static void setInfoLine(const std::string& line);
+    
     void printHelpMenu();
     void pausePrintHelpMenu();
-
-    Module loadedMod;
-    int errDisplayFrames;
+    void resizeSignal(int signal);
 
 
-    std::string userInput;
+    void loadKSP(Module m, connection *c);
 
-
-
-
-};
+    void *kspLoop(void *kerbalConnection);
+}
 
 
 #endif //SHINE_DISPLAY_MANAGER_H
