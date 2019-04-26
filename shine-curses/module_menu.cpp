@@ -69,6 +69,8 @@ module_menu::module_menu() {
                     clear();
                     refresh();
                     display_manager::loadKSP(display_manager::ksp, c);
+                    endwin();
+                    return;
                 }
                 break;
         }

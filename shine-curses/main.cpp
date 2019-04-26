@@ -21,6 +21,6 @@ void handler(int sig) {
 int main() {
     signal(SIGSEGV, handler);
     new module_menu();
-    std::cout << "Solaris Aerospace would like to thank you for using Shine! - \"Thera\"" << std::endl;
+    std::cout << "Solaris Aerospace would like to thank you for using Shine!" << std::endl;
     return 0;
 }

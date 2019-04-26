@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <sstream>
 #include <pthread.h>
+#include <iomanip>
 
 using namespace display_manager;
 
@@ -47,13 +48,29 @@ void display_manager::loadKSP(Module m, connection *c) {
 void *display_manager::kspLoop(void *conn) {
     connection *kerbalConnection = static_cast<connection *>(conn);
     roConnection = kerbalConnection;
+    if (!kerbalConnection->testConnection()) {
+        telemetryType = -1;
+        pthread_exit(NULL);
+    }
+
     kerbalConnection->resetTelemetry();
     while (telemetryType >= 0) {
-        if (telemetryType == 1) {
-            kerbalConnection->getShipTelemetry();
+        if (telemetryType >= 1 && telemetryType <= 10) {
+            try {
+                kerbalConnection->getShipTelemetry();
+            } catch (const std::exception& e) {
+                std::cerr << e.what();
+                telemetryType = 0;
+            }
+            usleep(200000);
+        } else if (telemetryType > 10) {
+            // Autopilot mode requires more precision.
+            usleep(5000);
+        } else {
+            usleep(200000);
         }
 
-        usleep(20000);
+
     }
     pthread_exit(NULL);
 }
@@ -118,24 +135,13 @@ void display_manager::kspTelemetry() {
 
     while (true) {
 
-        if (telemetryType == 1) {
+        if (telemetryType >= 1) {
 
             drawKspVesselTelemetry();
 
-            /*
-            try {
-                drawKspVesselTelemetry();
-            } catch (const std::exception& e) {
-                move(LINES - 2, 0);
-                std::cerr << e.what();
-                setInfoLine("Shine curses main menu.");
-                clearStatsLines();
-                telemetryType = 0;
-            } */
-
         }
 
-        if (telemetryType == -1) {
+        if (telemetryType <= -1) {
             break;
         }
         getDrawUserInput();
@@ -151,6 +157,7 @@ void display_manager::getDrawUserInput() {
     int c;
     do {
         c = getch();
+        // std::cerr << "Key pressed " << c;
         if (c == ERR) {
             break;
         }
@@ -177,9 +184,14 @@ void display_manager::getDrawUserInput() {
             }
 
             userInput = "";
-        } else if (c == 127) {
+        } else if (c == 8 || c == KEY_BACKSPACE) {
             if (!userInput.empty()) {
                 userInput = userInput.substr(0, userInput.size() - 1);
+            }
+            int x, y;
+            getyx(stdscr, y, x);
+            if (x < 2) {
+                move(y, 2);
             }
 
         } else if (c != ERR) {
@@ -221,22 +233,90 @@ void display_manager::drawKspVesselTelemetry() {
 }
 
 void display_manager::drawTelemetry() {
-
     clearStatsLines();
 
-    move(1, 0);
-    drawDataElement("Vessel:", roConnection->shipTelemetry_name, 3);
-    drawDataElement("RTC:", roConnection->shipTelemetry_realTime, 3);
-    drawDataElement("Mission Time:", std::to_string(roConnection->shipTelemetry_time), 3);
-    drawDataElement("Orbit velocity:", std::to_string(roConnection->shipTelemetry_velocity), 2);
+    switch (telemetryType) {
+        case 1 :
+            setInfoLine("General");
+            move(1, 0);
+            drawDataElement("Vessel:", roConnection->shipTelemetry_name, 3);
+            drawDataElement("RTC:", roConnection->shipTelemetry_realTime, 3, true);
+            drawDataElement("MET:", parseDouble(roConnection->shipTelemetry_time), 3);
+            drawDataElement("Orbit V:", parseDouble(roConnection->shipTelemetry_velocity), 2, true);
+            drawDataElement("Phi:", parseDouble(roConnection->shipTelemetry_phi), 4);
+            drawDataElement("Theta:", parseDouble(roConnection->shipTelemetry_theta), 4);
+            drawDataElement("Height:", parseDouble(roConnection->shipTelemetry_altitude), 2);
 
+            break;
+        case 2 :
+            setInfoLine("Surface");
+            move(1, 0);
+            drawDataElement("Vessel:", roConnection->shipTelemetry_name, 3);
+            drawDataElement("RTC:", roConnection->shipTelemetry_realTime, 3);
+            drawDataElement("Altitude:", parseDouble(roConnection->shipTelemetry_altitude), 2);
+            drawDataElement("Unimplemented:", "Data unavailable", 3, true);
+            break;
+        case 3 :
+            setInfoLine("Orbital");
+            move(1, 0);
+            drawDataElement("Vessel:", roConnection->shipTelemetry_name, 3);
+            drawDataElement("RTC:", roConnection->shipTelemetry_realTime, 3, true);
+            drawDataElement("Orbit V:", parseDouble(roConnection->shipTelemetry_velocity), 2);
+            drawDataElement("A.apsis:", parseDouble(roConnection->shipTelemetry_apoapsis), 2);
+            drawDataElement("P.apsis:", parseDouble(roConnection->shipTelemetry_periapsis), 2);
+            drawDataElement("Radius:", parseDouble(roConnection->shipTelemetry_altitude), 2);
+
+            break;
+        case 4 :
+            setInfoLine("Physics");
+            break;
+        case 5 :
+            setInfoLine("Resources");
+            move (1, 0);
+            drawDataElement("Vessel:", roConnection->shipTelemetry_name, 3);
+            drawDataElement("RTC:", roConnection->shipTelemetry_realTime, 3);
+            for (auto const& [key, val] : roConnection->shipTelemetry_resources) {
+                double percentage = 100.0 * std::get<0>(val) / std::get<1>(val);
+                int hazard = 2;
+                if (percentage <= 75.0)
+                    hazard++;
+                if (percentage <= 50.0)
+                    hazard++;
+                if (percentage <= 20.0)
+                    hazard++;
+                if (percentage <= 0.1)
+                    hazard++;
+
+                std::string keyS = key;
+
+                if (key == "ElectricCharge") {
+                    keyS = "Power Charge";
+                } else if (key == "LiquidFuel") {
+                    keyS = "Liquid Fuel";
+                } else {
+                    keyS = key;
+                }
+
+                drawDataElement(keyS + " amt:", parseDouble(std::get<0>(val)), hazard, true);
+                drawDataElement(keyS + " max:", parseDouble(std::get<1>(val)), hazard);
+                drawDataElement(keyS + " %:", parseDouble(percentage), hazard);
+
+            }
+            break;
+        case 6 :
+            setInfoLine("Staging");
+            break;
+        default:
+            setInfoLine("Unknown Telemetry " + std::to_string(telemetryType));
+            break;
+    }
 
 }
 
-void display_manager::drawDataElement(const std::string& dataType, const std::string& processedValue, uint intensity) {
+void display_manager::drawDataElement(const std::string& dataType, const std::string& processedValue, uint intensity, bool newLine) {
     int y, x;
     getyx(stdscr, y, x);
-    int nextTab = getNextTab(y, x, dataType.size() + processedValue.size() + 2);
+    int nextTab = getNextTab(y, x, dataType.size() + processedValue.size(), newLine);
     if (nextTab == 0) {
         move( (y + 1), 0);
     } else {
@@ -244,7 +324,13 @@ void display_manager::drawDataElement(const std::string& dataType, const std::st
     }
 
     printw(dataType.c_str());
-    printw("  ");
+    getyx(stdscr, y, x);
+    nextTab = getNextTab(y, x, processedValue.size(), false);
+    if (nextTab == 0) {
+        printf("  ");
+    } else {
+        move(y, nextTab);
+    }
     attron(COLOR_PAIR(intensity));
     printw(processedValue.c_str());
     attron(COLOR_PAIR(1U));
@@ -302,6 +388,19 @@ std::string display_manager::parseUserInput(std::string UI) {
         }
     }
 
+    if (tokens.at(0) == "display" || tokens.at(0) == "d") {
+        if (tokens.size() < 2) {
+            telemetryType = 1;
+        }
+        try {
+            int i = std::atoi(tokens.at(1).c_str());
+            telemetryType = i;
+        } catch (const std::exception& e) {
+            return "Invalid display integer: " + tokens.at(1);
+        }
+
+    }
+
 
 
     if (tokens.at(0) == "error") {
@@ -324,23 +423,29 @@ void display_manager::clearStatsLines() {
 }
 
 // If on new line stay there. Otherwise go forward by up to 2 tabs.
-int display_manager::getNextTab(int y, int x, int msgLength) {
+int display_manager::getNextTab(int y, int x, int msgLength, bool newLine) {
+    // Person wanted new line.
+    if (newLine) {
+        return 0;
+    }
+
     // Only happens when starting out, go to next page.
     if (x == 0) {
         return 0;
     }
 
+
     int retAdd = 0;
 
     int c = x % TABLENGTH;
     if (c == 0) {
-        retAdd = 20;
+        retAdd = 10;
     } else {
-        retAdd = 10 + (10 - c);
+        retAdd = 0 + (10 - c);
     }
 
     // Current x value is too large so go to next page
-    if ( (x + (msgLength + retAdd + 1)) >= COLS) {
+    if ( (x + (msgLength + retAdd -1)) >= COLS) {
         return 0;
     }
     if (retAdd == 0) {
@@ -373,19 +478,21 @@ void display_manager::sigabrtHandler(int sigabrt) {
 
 void display_manager::printHelpMenu() {
     move (3, 0);
-    drawDataElement("help", "Display this menu", 7);
-    drawDataElement("vessel connect", "Start vessel telemetry", 7);
-    drawDataElement("vessel disconnect", "Stop vessel telemetry", 7);
-    drawDataElement("vessel list", "List all vessels", 7);
-    drawDataElement("error", "Intentionally create error", 7);
-    drawDataElement("husk", "Autopilot commands", 7);
-    drawDataElement("husk orbit", "Automatically orbit", 7);
-    drawDataElement("husk takeoff", "Automatically takeoff", 7);
+    drawDataElement("help         ", "Display this menu", 7);
+    drawDataElement("vessel connect", "Start telemetry", 7);
+    drawDataElement("vessel disconnect", "Stop telemetry", 7);
+    drawDataElement("vessel list  ", "List all vessels", 7);
+    drawDataElement("error        ", "Intentional error", 7);
+    drawDataElement("husk         ", "Autopilot commands", 7);
+    drawDataElement("husk orbit   ", "Auto orbit", 7);
+    drawDataElement("husk takeoff ", "Auto takeoff", 7);
+    drawDataElement("d [1-7]", "Switch displays (see help)", 7);
     refresh();
 
 }
 
 void display_manager::pausePrintHelpMenu() {
+    clearStatsLines();
     nodelay(stdscr, false);
     move (0, 0);
     printw("Help Menu, press any key to return.");
@@ -394,7 +501,7 @@ void display_manager::pausePrintHelpMenu() {
     getch();
     if (telemetryType == 0) {
         setInfoLine("Shine curses main menu.");
-    } else if (telemetryType == 1) {
+    } else if (telemetryType >= 1) {
         setInfoLine("Connected to Vessel.");
     }
     clearStatsLines();
@@ -407,4 +514,14 @@ void display_manager::setInfoLine(const std::string& line) {
     move(0, 0);
     printw(line.c_str());
 
+}
+
+std::string display_manager::parseDouble(double d) {
+    std::ostringstream streamObj;
+    streamObj << std::setprecision(5);
+    //Add double to stream
+    streamObj << d;
+    // Get string from output string stream
+    std::string strObj = streamObj.str();
+    return strObj;
 }

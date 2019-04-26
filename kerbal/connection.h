@@ -21,7 +21,6 @@
 
 #include <krpc/client.hpp>
 
-static std::chrono::time_point lastTelemetryRead = std::chrono::high_resolution_clock::now();
 class connection {
 public:
     int tryConnection();
@@ -36,6 +35,8 @@ public:
     // flight data
     float shipTelemetry_gForce;
     double shipTelemetry_altitude;
+    double shipTelemetry_height;
+    double shipTelemetry_radius;
     double shipTelemetry_latitude;
     double shipTelemetry_longitude;
 
@@ -46,13 +47,21 @@ public:
     double shipTelemetry_eccentricity;
     double shipTelemetry_inclination;
 
+    // Relative to planet
+    double shipTelemetry_phi;
+    double shipTelemetry_theta;
+
+    std::map<std::string, std::tuple<double, double>> shipTelemetry_resources;
+
     void getShipTelemetry();
+    void getShipAngles();
 
 
     krpc::Client krpcConnection;
     void resetTelemetry();
+    bool testConnection();
 
-
+    bool didReset = true;
 };
 
 

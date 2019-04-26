@@ -34,10 +34,10 @@ namespace  display_manager {
     void drawKspVesselTelemetry();
 
     void drawTelemetry();
-    void drawDataElement(const std::string& dataType, const std::string& processedValue, uint intensity = 1);
+    void drawDataElement(const std::string& dataType, const std::string& processedValue, uint intensity = 1, bool newLine = false);
     void getDrawUserInput();
     void clearStatsLines();
-    int getNextTab(int y, int x, int msgLength);
+    int getNextTab(int y, int x, int msgLength, bool newLine);
     void chronoSleep(int uSecs);
 
     std::string parseUserInput(std::string UI);
@@ -52,6 +52,8 @@ namespace  display_manager {
     void loadKSP(Module m, connection *c);
 
     void *kspLoop(void *kerbalConnection);
+
+    std::string parseDouble(double d);
 }
 
 

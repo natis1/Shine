@@ -10,13 +10,13 @@ find_package(Protobuf REQUIRED)
 message("Protobuf Libraries are ${PROTOBUF_LIBRARIES}.")
 
 
-add_library(kerbal STATIC kerbal/connection.cpp kerbal/connection.h)
+add_library(kerbal STATIC kerbal/connection.cpp kerbal/connection.h kerbal/math.cpp kerbal/math.h)
 
 target_link_libraries(kerbal "${KRPC}" "${PROTOBUF_LIBRARIES}")
 
 find_package(Curses REQUIRED)
 message("Curses Libraries are ${CURSES_LIBRARIES}.")
 
-add_executable(shine shine-curses/main.cpp shine-curses/module_menu.cpp shine-curses/module_menu.h shine-curses/display_manager.cpp shine-curses/display_manager.h)
+add_executable(shine shine-curses/main.cpp shine-curses/module_menu.cpp shine-curses/module_menu.h shine-curses/display_manager.cpp shine-curses/display_manager.h shine-curses/kerbal_tools/autopilot.cpp shine-curses/kerbal_tools/autopilot.h)
 
 target_link_libraries(shine "${CURSES_LIBRARIES}" "kerbal")
