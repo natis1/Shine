@@ -36,20 +36,22 @@ const char* ADDR = "127.0.0.1";
 const uint RPC_PORT = 50000;
 const uint STREAM_PORT = 50001;
 
+krpc::Client krpcConnection = krpc::connect(NAME(), ADDR, RPC_PORT, STREAM_PORT);
+krpc::services::SpaceCenter sc(&krpcConnection);
+krpc::services::SpaceCenter::Vessel vessel = sc.active_vessel();
 
+krpc::Stream<double> ut = sc.ut_stream();
+
+connection::connection() {
+
+}
 
 int connection::tryConnection() {
-    try {
-        krpcConnection = krpc::connect(NAME(), ADDR, RPC_PORT, STREAM_PORT);
-        krpc::services::KRPC krpc(&krpcConnection);
-        std::cout << krpc.get_status().version() << std::endl;
-    } catch (const std::system_error& e) {
-        std::cerr << "Unable to connect to krpc server." << std::endl;
-        return 1;
-    }
 
     return 0;
 }
+
+
 
 
 
@@ -62,10 +64,7 @@ void connection::getShipTelemetry() {
     oss << std::put_time(&tm, "%H:%M:%S");
     shipTelemetry_realTime = oss.str();
 
-    krpc::services::SpaceCenter sc(&krpcConnection);
-    auto vessel = sc.active_vessel();
     auto orbit = vessel.orbit();
-
     //auto flight = vessel.flight();
 
     shipTelemetry_gForce = -1;
@@ -83,10 +82,12 @@ void connection::getShipTelemetry() {
     shipTelemetry_periapsis = orbit.periapsis();
     shipTelemetry_eccentricity = orbit.eccentricity();
     shipTelemetry_inclination = orbit.inclination();
+    shipTelemetry_timeToApoapsis = orbit.time_to_apoapsis();
 
     shipTelemetry_height = shine_math::magnitude(vessel.position(orbit.body().reference_frame()));
 
-    shipTelemetry_altitude = shipTelemetry_height - (shipTelemetry_apoapsis - orbit.apoapsis_altitude());
+    shipTelemetry_apoapsisAltitude = orbit.apoapsis_altitude();
+    shipTelemetry_altitude = shipTelemetry_height - (shipTelemetry_apoapsis - shipTelemetry_apoapsisAltitude);
 
     vessel.position(vessel.orbit().body().reference_frame());
 
@@ -154,6 +155,9 @@ void connection::resetTelemetry() {
     shipTelemetry_periapsis = -1;
     shipTelemetry_eccentricity = -1;
     shipTelemetry_inclination = -1;
+    shipTelemetry_timeToApoapsis = -1;
+    shipTelemetry_apoapsisAltitude = -1;
+
 
     shipTelemetry_theta = -1;
     shipTelemetry_phi = -1;
@@ -167,6 +171,78 @@ bool connection::testConnection() {
     } catch (const std::exception& e) {
         return false;
     }
+}
+
+void connection::aimVessel(double theta, double phi) {
+    double t_actual = theta * 180 / M_PI;
+    double p_actual = 90.0 - (phi * 180.0 / M_PI);
+    vessel.auto_pilot().target_pitch_and_heading(p_actual, t_actual);
+}
+
+void connection::setAutopilot(bool enable) {
+    if (enable) {
+        vessel.auto_pilot().engage();
+    } else {
+        vessel.auto_pilot().disengage();
+    }
+
+}
+
+void connection::setVesselThrust(double thrust) {
+    vessel.control().set_throttle(thrust);
+}
+
+void connection::circularize() {
+    double mu = vessel.orbit().body().gravitational_parameter();
+    double r = vessel.orbit().apoapsis();
+    double a1 = vessel.orbit().semi_major_axis();
+    double a2 = r;
+    double v1 = std::sqrt(mu * ((2.0 / r) - (1.0 / a1)));
+    double v2 = std::sqrt(mu * ((2.0 / r) - (1.0 / a2)));
+    double delta_v = v2 - v1;
+    auto node = vessel.control().add_node(
+            ut() + vessel.orbit().time_to_apoapsis(), delta_v);
+}
+
+double connection::calculateNodeBurnTime() {
+    // Calculate burn time (using rocket equation)
+    if (vessel.control().nodes().size() == 0) {
+        return 0;
+    }
+    double delta_v = vessel.control().nodes().at(0).delta_v();
+    double F = vessel.available_thrust();
+    double Isp = vessel.specific_impulse() * 9.82;
+    double m0 = vessel.mass();
+    double m1 = m0 / std::exp(delta_v / Isp);
+    double flowRate = F / Isp;
+    return (m0 - m1) / flowRate;
+}
+
+double connection::getUniversalTime() {
+    return ut();
+}
+
+void connection::pointTowardsNode() {
+    if (vessel.control().nodes().size() == 0) {
+        return;
+    }
+    vessel.auto_pilot().reference_frame() = vessel.control().nodes().at(0).reference_frame();
+    vessel.auto_pilot().target_direction() = std::tuple<double, double, double>(0.0, 1.0, 0.0);
+    vessel.auto_pilot().wait();
+
+}
+
+void connection::warpTo(double time) {
+    sc.warp_to(time);
+}
+
+double connection::getRemainingNodeBurn() {
+    if (vessel.control().nodes().size() == 0) {
+        return 0.0;
+    }
+    auto node = vessel.control().nodes().at(0);
+    auto remainingBurn = node.remaining_burn_vector_stream(node.reference_frame());
+    return shine_math::magnitude(remainingBurn());
 }
 
 

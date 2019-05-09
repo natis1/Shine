@@ -34,3 +34,22 @@ double shine_math::dotProduct(std::tuple<double, double, double> vec1, std::tupl
 double shine_math::magnitude(std::tuple<double, double, double> vec) {
     return (sqrt( pow(std::get<0>(vec), 2.0) + pow(std::get<1>(vec), 2.0) + pow(std::get<2>(vec), 2.0)));
 }
+
+double shine_math::idealAimAngle(double currentHeight, double alpha, double beta, int planet) {
+
+    // TODO: Add other planets, so far it assumes kerbin only.
+
+    double c = (currentHeight - beta);
+
+    if (c <= 0) {
+        return 0;
+    }
+
+    double angle = std::pow((c / (70000.0 - beta)), alpha) * M_PI;
+
+    if (angle >= (M_PI / 2) ) {
+        return (M_PI / 2.0);
+    } else {
+        return angle;
+    }
+}

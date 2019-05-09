@@ -19,8 +19,25 @@
 #ifndef SHINE_AUTOPILOT_H
 #define SHINE_AUTOPILOT_H
 
+#include "../../kerbal/connection.h"
+
+#define AUTOPILOT_COMPLETE -1
 
 class autopilot {
+public:
+    autopilot(connection *conn);
+    void takeoff();
+    double alpha;
+    double beta;
+    double targetHeight;
+
+    int autopilotPhase;
+
+
+
+private:
+    connection *c;
+
 
 };
 

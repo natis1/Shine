@@ -24,6 +24,8 @@
 
 namespace shine_math {
 
+    double idealAimAngle(double currentHeight, double alpha, double beta, int planet = 0);
+
     double angleBetween(std::tuple<double, double, double> vec1, std::tuple<double, double, double> vec2);
     double dotProduct(std::tuple<double, double, double> vec1, std::tuple<double, double, double> vec2);
     double magnitude(std::tuple<double, double, double> vec);

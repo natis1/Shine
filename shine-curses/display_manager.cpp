@@ -22,6 +22,7 @@
 #include <sstream>
 #include <pthread.h>
 #include <iomanip>
+#include "kerbal_tools/autopilot.h"
 
 using namespace display_manager;
 
@@ -36,7 +37,8 @@ Module loadedMod;
 int errDisplayFrames;
 std::string userInput;
 connection *roConnection;
-
+autopilot *aPilot;
+bool enabledAutopilot;
 
 void display_manager::loadKSP(Module m, connection *c) {
     loadedMod = m;
@@ -53,9 +55,15 @@ void *display_manager::kspLoop(void *conn) {
         pthread_exit(NULL);
     }
 
+    aPilot = new autopilot(kerbalConnection);
+
     kerbalConnection->resetTelemetry();
     while (telemetryType >= 0) {
         if (telemetryType >= 1 && telemetryType <= 10) {
+            if (enabledAutopilot == true) {
+                kerbalConnection->setAutopilot(false);
+                enabledAutopilot = false;
+            }
             try {
                 kerbalConnection->getShipTelemetry();
             } catch (const std::exception& e) {
@@ -64,8 +72,24 @@ void *display_manager::kspLoop(void *conn) {
             }
             usleep(200000);
         } else if (telemetryType > 10) {
+            if (enabledAutopilot == false) {
+                roConnection->setAutopilot(true);
+                enabledAutopilot = true;
+            }
+            try {
+                kerbalConnection->getShipTelemetry();
+            } catch (const std::exception& e) {
+                std::cerr << e.what();
+                telemetryType = -1;
+            }
+            if (telemetryType == 11) {
+                aPilot->takeoff();
+                if (aPilot->autopilotPhase == AUTOPILOT_COMPLETE) {
+                    telemetryType = 1;
+                }
+            }
             // Autopilot mode requires more precision.
-            usleep(5000);
+            usleep(50000);
         } else {
             usleep(200000);
         }
@@ -306,6 +330,16 @@ void display_manager::drawTelemetry() {
         case 6 :
             setInfoLine("Staging");
             break;
+        case 11:
+            setInfoLine("Husk Takeoff");
+            move(1, 0);
+            drawDataElement("Vessel:", roConnection->shipTelemetry_name, 3);
+            drawDataElement("RTC:", roConnection->shipTelemetry_realTime, 3);
+            drawDataElement("Phase:", std::to_string(aPilot->autopilotPhase), 2);
+            drawDataElement("Altitude:", parseDouble(roConnection->shipTelemetry_altitude), 2);
+            drawDataElement("Apoapsis Altitude:", parseDouble(roConnection->shipTelemetry_apoapsisAltitude), 2);
+            break;
+
         default:
             setInfoLine("Unknown Telemetry " + std::to_string(telemetryType));
             break;
@@ -361,6 +395,20 @@ std::string display_manager::parseUserInput(std::string UI) {
     // Safety
     if (tokens.empty()) {
         return "";
+    }
+
+    if (tokens.at(0) == "husk") {
+        if (tokens.size() < 2) {
+            return "Usage: husk [takeoff/orbit]";
+        } else {
+            if (tokens.at(1) == "takeoff") {
+                aPilot->targetHeight = 100000.0;
+                aPilot->alpha = 0.4;
+                aPilot->beta = 5000;
+                telemetryType = 11;
+            }
+        }
+
     }
 
     if (tokens.at(0) == "help") {

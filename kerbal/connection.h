@@ -23,6 +23,7 @@
 
 class connection {
 public:
+    connection();
     int tryConnection();
 
     // vessel data
@@ -47,9 +48,14 @@ public:
     double shipTelemetry_eccentricity;
     double shipTelemetry_inclination;
 
+    double shipTelemetry_timeToApoapsis;
+    double shipTelemetry_apoapsisAltitude;
+
     // Relative to planet
     double shipTelemetry_phi;
     double shipTelemetry_theta;
+
+    double getUniversalTime();
 
     std::map<std::string, std::tuple<double, double>> shipTelemetry_resources;
 
@@ -57,9 +63,19 @@ public:
     void getShipAngles();
 
 
-    krpc::Client krpcConnection;
+    krpc::Client *getKrpcConnection();
     void resetTelemetry();
     bool testConnection();
+
+    void aimVessel(double theta, double phi);
+    void setAutopilot(bool enable);
+    void setVesselThrust(double thrust);
+    void circularize();
+    double calculateNodeBurnTime();
+    void pointTowardsNode();
+    void warpTo(double time);
+    double getRemainingNodeBurn();
+
 
     bool didReset = true;
 };
