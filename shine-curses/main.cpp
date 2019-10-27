@@ -19,6 +19,7 @@ void handler(int sig) {
 }
 
 int main() {
+    std::cerr << "Starting shine" << std::endl;
     signal(SIGSEGV, handler);
     new module_menu();
     std::cout << "Solaris Aerospace would like to thank you for using Shine!" << std::endl;

@@ -57,18 +57,21 @@ void autopilot::takeoff() {
             autopilotPhase = 4;
             c->setVesselThrust(1.0);
         }
-    } else if (autopilotPhase = 4) {
+    } else if (autopilotPhase == 4) {
+        c->pointTowardsNode();
         double remainingBurnAmt = c->getRemainingNodeBurn();
         std::cerr << "Remaining burn amount " << remainingBurnAmt << std::endl;
 
         if (remainingBurnAmt <= 100.0) {
-            c->setVesselThrust(0.05);
+            c->setVesselThrust(remainingBurnAmt / 100.0);
+        } if (remainingBurnAmt <= 5.0) {
             autopilotPhase = 5;
         }
 
     } else {
         double remainingBurnAmt = c->getRemainingNodeBurn();
-        if (remainingBurnAmt > 0) {
+        if (remainingBurnAmt > 2.0) {
+            c->deleteNode(0);
             return;
         } else {
             c->setVesselThrust(0.0);

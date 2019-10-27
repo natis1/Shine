@@ -34,9 +34,6 @@ void module_menu::signalHandler(int sig) {
         endwin();
         return;
     }
-
-
-
 }
 
 module_menu::module_menu() {
@@ -65,6 +62,8 @@ module_menu::module_menu() {
                     move(MENU_DISPLAY_HEIGHT, 0);
                     printw("Error connecting to kRPC. Is the kRPC mod installed and KSP running?");
                     getch();
+                    endwin();
+                    return;
                 } else {
                     clear();
                     refresh();
@@ -76,8 +75,6 @@ module_menu::module_menu() {
         }
         drawMenu();
     }
-
-
 }
 
 

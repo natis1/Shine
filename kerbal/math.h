@@ -29,6 +29,7 @@ namespace shine_math {
     double angleBetween(std::tuple<double, double, double> vec1, std::tuple<double, double, double> vec2);
     double dotProduct(std::tuple<double, double, double> vec1, std::tuple<double, double, double> vec2);
     double magnitude(std::tuple<double, double, double> vec);
+    std::tuple<double, double, double> normalize(std::tuple<double, double, double> vec);
 }
 
 

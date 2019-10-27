@@ -10,7 +10,7 @@ find_package(Protobuf REQUIRED)
 message("Protobuf Libraries are ${PROTOBUF_LIBRARIES}.")
 
 
-add_library(kerbal STATIC kerbal/connection.cpp kerbal/connection.h kerbal/math.cpp kerbal/math.h)
+add_library(kerbal SHARED kerbal/connection.cpp kerbal/connection.h kerbal/math.cpp kerbal/math.h)
 
 target_link_libraries(kerbal "${KRPC}" "${PROTOBUF_LIBRARIES}")
 

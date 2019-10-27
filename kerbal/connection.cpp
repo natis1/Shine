@@ -17,9 +17,6 @@
  */
 
 #include "connection.h"
-#include <krpc.hpp>
-#include <krpc/services/krpc.hpp>
-#include <krpc/services/space_center.hpp>
 #include <iostream>
 #include <ctime>
 #include <iomanip>
@@ -36,18 +33,20 @@ const char* ADDR = "127.0.0.1";
 const uint RPC_PORT = 50000;
 const uint STREAM_PORT = 50001;
 
-krpc::Client krpcConnection = krpc::connect(NAME(), ADDR, RPC_PORT, STREAM_PORT);
-krpc::services::SpaceCenter sc(&krpcConnection);
-krpc::services::SpaceCenter::Vessel vessel = sc.active_vessel();
 
-krpc::Stream<double> ut = sc.ut_stream();
 
 connection::connection() {
 
 }
 
 int connection::tryConnection() {
-
+    try {
+        krpcConnection = krpc::connect(NAME(), ADDR, RPC_PORT, STREAM_PORT);
+        sc = new krpc::services::SpaceCenter(&krpcConnection);
+        vessel = sc->active_vessel();
+    } catch (krpc::RPCError) {
+        return 1;
+    }
     return 0;
 }
 
@@ -174,6 +173,9 @@ bool connection::testConnection() {
 }
 
 void connection::aimVessel(double theta, double phi) {
+    if (theta < 0.0) {
+        theta = (2.0 * M_PI) + theta;
+    }
     double t_actual = theta * 180 / M_PI;
     double p_actual = 90.0 - (phi * 180.0 / M_PI);
     vessel.auto_pilot().target_pitch_and_heading(p_actual, t_actual);
@@ -201,7 +203,7 @@ void connection::circularize() {
     double v2 = std::sqrt(mu * ((2.0 / r) - (1.0 / a2)));
     double delta_v = v2 - v1;
     auto node = vessel.control().add_node(
-            ut() + vessel.orbit().time_to_apoapsis(), delta_v);
+        sc->ut() + vessel.orbit().time_to_apoapsis(), delta_v);
 }
 
 double connection::calculateNodeBurnTime() {
@@ -219,21 +221,31 @@ double connection::calculateNodeBurnTime() {
 }
 
 double connection::getUniversalTime() {
-    return ut();
+    return sc->ut();
 }
 
 void connection::pointTowardsNode() {
     if (vessel.control().nodes().size() == 0) {
         return;
     }
-    vessel.auto_pilot().reference_frame() = vessel.control().nodes().at(0).reference_frame();
-    vessel.auto_pilot().target_direction() = std::tuple<double, double, double>(0.0, 1.0, 0.0);
+//     auto a = vessel.control().nodes().at(0).remaining_burn_vector(vessel.surface_reference_frame());
+//     auto a0 = shine_math::normalize(a);
+//     std::cerr << "node direction is " << std::get<0>(a0) << ", " << std::get<1>(a0) << ", " << std::get<2>(a0)<< std::endl;
+// 
+//     x = r cos (phi). r is 1 so acos(y) =  theta
+//     double phi = acos(std::get<0>(a0));
+//     double theta = atan2(std::get<1>(a0), std::get<2>(a0));
+//     std::cerr << "phi is " << phi << " and theta is " << theta << std::endl;
+//     aimVessel(theta, phi);
+    
+    vessel.auto_pilot().set_reference_frame(vessel.control().nodes().at(0).reference_frame());
+    vessel.auto_pilot().set_target_direction(std::tuple<double, double, double>(0.0, 1.0, 0.0));
     vessel.auto_pilot().wait();
 
 }
 
 void connection::warpTo(double time) {
-    sc.warp_to(time);
+    sc->warp_to(time);
 }
 
 double connection::getRemainingNodeBurn() {
@@ -241,8 +253,17 @@ double connection::getRemainingNodeBurn() {
         return 0.0;
     }
     auto node = vessel.control().nodes().at(0);
-    auto remainingBurn = node.remaining_burn_vector_stream(node.reference_frame());
-    return shine_math::magnitude(remainingBurn());
+    auto remainingBurn = node.remaining_burn_vector();
+    return shine_math::magnitude(remainingBurn);
 }
+
+void connection::deleteNode(int nodeNum)
+{
+    if (vessel.control().nodes().size() < nodeNum) {
+        return;
+    }
+    vessel.control().nodes().at(nodeNum).remove();
+}
+
 
 

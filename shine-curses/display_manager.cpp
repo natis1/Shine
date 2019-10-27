@@ -208,7 +208,7 @@ void display_manager::getDrawUserInput() {
             }
 
             userInput = "";
-        } else if (c == 8 || c == KEY_BACKSPACE) {
+        } else if (c == 8 || c == KEY_BACKSPACE || c == 127) {
             if (!userInput.empty()) {
                 userInput = userInput.substr(0, userInput.size() - 1);
             }
@@ -237,6 +237,7 @@ void display_manager::getDrawUserInput() {
     attron(COLOR_PAIR(1U));
     move(LINES - 1, 0);
     printw("> ");
+    clrtoeol();
     attron(COLOR_PAIR(8U));
     printw(userInput.c_str());
     attron(COLOR_PAIR(1U));

@@ -19,7 +19,11 @@
 #ifndef SHINE_CONNECTION_H
 #define SHINE_CONNECTION_H
 
+#include <krpc.hpp>
 #include <krpc/client.hpp>
+#include <krpc/services/krpc.hpp>
+#include <krpc/services/space_center.hpp>
+
 
 class connection {
 public:
@@ -75,9 +79,17 @@ public:
     void pointTowardsNode();
     void warpTo(double time);
     double getRemainingNodeBurn();
+    void deleteNode(int nodeNum);
 
 
     bool didReset = true;
+    
+private:
+    
+    krpc::services::SpaceCenter::Vessel vessel;
+    krpc::services::SpaceCenter *sc;
+    krpc::Client krpcConnection;
+    //krpc::Stream<double> ut;
 };
 
 

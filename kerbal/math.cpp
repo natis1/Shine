@@ -53,3 +53,13 @@ double shine_math::idealAimAngle(double currentHeight, double alpha, double beta
         return angle;
     }
 }
+
+std::tuple<double, double, double> shine_math::normalize(std::tuple<double, double, double> vec)
+{
+    double mag = magnitude(vec);
+    std::get<0>(vec) = std::get<0>(vec) / mag;
+    std::get<1>(vec) = std::get<1>(vec) / mag;
+    std::get<2>(vec) = std::get<2>(vec) / mag;
+    return vec;
+}
+
