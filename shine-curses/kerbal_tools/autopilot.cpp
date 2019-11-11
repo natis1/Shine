@@ -26,14 +26,84 @@
 double burnTime;
 
 
+void autopilot::landAnywhere()
+{
+    if (autopilotPhase == 0) {
+        double burnUT = c->changePeriapsis(c->shipTelemetry_apoapsis - c->shipTelemetry_apoapsisAltitude, c->shipTelemetry_apoapsis);
+        c->setVesselThrust(0.0);
+        burnTime = c->calculateNodeBurnTime();
+        c->pointTowardsNode();
+        burnUT -= (burnTime / 2.0);
+        
+        if (burnUT > c->getUniversalTime())
+            c->warpTo(burnUT - 3.0);
+        autopilotPhase = 3;
+    }
+    
+    if (autopilotPhase == 3) {
+        double burnUT = c->getUniversalTime() + c->shipTelemetry_timeToApoapsis - (burnTime / 2.0);
+        if (burnUT < c->getUniversalTime()) {
+            autopilotPhase = 4;
+            c->setVesselThrust(1.0);
+        }
+    } else if (autopilotPhase == 4) {
+        c->pointTowardsNode();
+        autopilotPhase = 5;
+    } else if (autopilotPhase == 5) {
+        double remainingBurn = c->shipTelemetry_periapsis - (c->shipTelemetry_apoapsis - c->shipTelemetry_apoapsisAltitude);
+        double remainingBurnAmt = c->getRemainingNodeBurn();
+        if (remainingBurn > 0 || remainingBurnAmt > 0) {
+            if (remainingBurnAmt < 100.0) {
+                c->setVesselThrust(remainingBurnAmt / 120);
+            } else if (remainingBurn < 40000) {
+                c->setVesselThrust(remainingBurn / 40000.0);
+            } if (remainingBurn <= 3000 || remainingBurnAmt < 5.0) {
+                c->setVesselThrust(0.0);
+                c->clearAllNodes();
+                autopilotPhase = 6;
+            }
+        } else {
+            c->setVesselThrust(0.0);
+            c->clearAllNodes();
+            autopilotPhase = 6;
+        }            
+    } else if (autopilotPhase == 6) {
+        c->setWarpRate(5);
+        autopilotPhase = 7;
+            
+    } else if (autopilotPhase == 7) {
+        while (c->shipTelemetry_altitude > 70500)
+            return;
+        if (!c->prepareParachuteList()) {
+            // Prepare for crash landing
+            // c->stageAll();
+            autopilotPhase = -1;
+        }
+        if (c->shipTelemetry_altitude < 25000) {
+            if (c->deployParachutesIfSafe()) {
+                autopilotPhase = -1;
+            }
+        }
+    }
+}
+
+
 void autopilot::takeoff() {
 
     if (autopilotPhase == 0) {
+        c->setVesselThrust(1.0);
+        const double acceptableError = 0.02;
         double h = c->shipTelemetry_altitude;
         double angle = shine_math::idealAimAngle(h, alpha, beta, 0);
-        c->aimVessel(M_PI_2, angle);
-        std::cerr << "Aimed vessel at " << angle << " because height is " << h << std::endl;
-
+        double currentAngleTheta = c->shipTelemetry_theta;
+        double currentAnglePhi = c->shipTelemetry_phi;
+        
+        // Only aim vessel if we are off track, to avoid needless overcompensation.
+        if ( (std::abs(currentAngleTheta - M_PI_2) > acceptableError && angle > acceptableError) || std::abs(currentAnglePhi - angle) > acceptableError)  {
+            c->aimVessel(M_PI_2, angle);
+            std::cerr << "Aimed vessel at " << angle << " because height is " << h << std::endl;
+        }
+        
         if (c->shipTelemetry_apoapsisAltitude >= targetHeight) {
             c->setVesselThrust(0.0);
             autopilotPhase = 1;

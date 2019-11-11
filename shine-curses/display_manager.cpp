@@ -33,6 +33,7 @@ const int ERRORFRAMES = 50;
 const int TABLENGTH = 10;
 
 int telemetryType = 0;
+int autoPilotType = 0;
 Module loadedMod;
 int errDisplayFrames;
 std::string userInput;
@@ -59,7 +60,7 @@ void *display_manager::kspLoop(void *conn) {
 
     kerbalConnection->resetTelemetry();
     while (telemetryType >= 0) {
-        if (telemetryType >= 1 && telemetryType <= 10) {
+        if (autoPilotType < 1) {
             if (enabledAutopilot == true) {
                 kerbalConnection->setAutopilot(false);
                 enabledAutopilot = false;
@@ -71,7 +72,7 @@ void *display_manager::kspLoop(void *conn) {
                 telemetryType = 0;
             }
             usleep(200000);
-        } else if (telemetryType > 10) {
+        } else if (autoPilotType > 0) {
             if (enabledAutopilot == false) {
                 roConnection->setAutopilot(true);
                 enabledAutopilot = true;
@@ -80,12 +81,19 @@ void *display_manager::kspLoop(void *conn) {
                 kerbalConnection->getShipTelemetry();
             } catch (const std::exception& e) {
                 std::cerr << e.what();
-                telemetryType = -1;
+                autoPilotType = 0;
             }
-            if (telemetryType == 11) {
+            if (autoPilotType == 1) {
                 aPilot->takeoff();
                 if (aPilot->autopilotPhase == AUTOPILOT_COMPLETE) {
                     telemetryType = 1;
+                    autoPilotType = 0;
+                }
+            } else if (autoPilotType == 2) {
+                aPilot->landAnywhere();
+                if (aPilot->autopilotPhase == AUTOPILOT_COMPLETE) {
+                    telemetryType = 1;
+                    autoPilotType = 0;
                 }
             }
             // Autopilot mode requires more precision.
@@ -331,15 +339,24 @@ void display_manager::drawTelemetry() {
         case 6 :
             setInfoLine("Staging");
             break;
-        case 11:
-            setInfoLine("Husk Takeoff");
+        case 7:
+            switch (autoPilotType) {
+                case 1:
+                    setInfoLine("Husk Autopilot: Takeoff to orbit " + std::to_string(((long)aPilot->targetHeight) / 1000) + "km");
+                    break;
+                case 2:
+                    setInfoLine("Husk Autopilot: Land Anywhere");
+                    break;
+                default:
+                    setInfoLine("Husk Autopilot: Unknown");
+            };
+            
             move(1, 0);
             drawDataElement("Vessel:", roConnection->shipTelemetry_name, 3);
             drawDataElement("RTC:", roConnection->shipTelemetry_realTime, 3);
             drawDataElement("Phase:", std::to_string(aPilot->autopilotPhase), 2);
             drawDataElement("Altitude:", parseDouble(roConnection->shipTelemetry_altitude), 2);
             drawDataElement("Apoapsis Altitude:", parseDouble(roConnection->shipTelemetry_apoapsisAltitude), 2);
-            break;
 
         default:
             setInfoLine("Unknown Telemetry " + std::to_string(telemetryType));
@@ -400,13 +417,17 @@ std::string display_manager::parseUserInput(std::string UI) {
 
     if (tokens.at(0) == "husk") {
         if (tokens.size() < 2) {
-            return "Usage: husk [takeoff/orbit]";
+            return "Usage: husk [takeoff/land]";
         } else {
             if (tokens.at(1) == "takeoff") {
                 aPilot->targetHeight = 100000.0;
-                aPilot->alpha = 0.4;
+                aPilot->alpha = 0.6;
                 aPilot->beta = 5000;
-                telemetryType = 11;
+                autoPilotType = 1;
+                telemetryType = 7;
+            } else if (tokens.at(1) == "land") {
+                autoPilotType = 2;
+                telemetryType = 7;
             }
         }
 
@@ -443,6 +464,8 @@ std::string display_manager::parseUserInput(std::string UI) {
         }
         try {
             int i = std::atoi(tokens.at(1).c_str());
+            if (i < 1 || i > 7)
+                return "Display integer " + tokens.at(i) + " does not exist.";
             telemetryType = i;
         } catch (const std::exception& e) {
             return "Invalid display integer: " + tokens.at(1);

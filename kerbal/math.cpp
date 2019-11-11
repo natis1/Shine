@@ -45,7 +45,7 @@ double shine_math::idealAimAngle(double currentHeight, double alpha, double beta
         return 0;
     }
 
-    double angle = std::pow((c / (70000.0 - beta)), alpha) * M_PI;
+    double angle = std::pow((c / (70000.0 - beta)), alpha) * (M_PI / 1.9);
 
     if (angle >= (M_PI / 2) ) {
         return (M_PI / 2.0);

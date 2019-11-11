@@ -75,11 +75,20 @@ public:
     void setAutopilot(bool enable);
     void setVesselThrust(double thrust);
     void circularize();
+    double changePeriapsis(double finalPeriapsis, double burnRadius);
+    
     double calculateNodeBurnTime();
     void pointTowardsNode();
     void warpTo(double time);
     double getRemainingNodeBurn();
     void deleteNode(int nodeNum);
+    
+    bool deployParachutesIfSafe();
+    bool prepareParachuteList();
+    void stageAll();
+    void clearAllNodes();
+    double getTWR();
+    void setWarpRate(int rate);
 
 
     bool didReset = true;

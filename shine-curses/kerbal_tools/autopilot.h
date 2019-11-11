@@ -27,6 +27,9 @@ class autopilot {
 public:
     autopilot(connection *conn);
     void takeoff();
+    void landAnywhere();
+    // Returns false if landing is impossible.
+    bool landAtCoordinates(double theta, double tau);
     double alpha;
     double beta;
     double targetHeight;

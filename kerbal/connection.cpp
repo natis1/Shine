@@ -33,6 +33,7 @@ const char* ADDR = "127.0.0.1";
 const uint RPC_PORT = 50000;
 const uint STREAM_PORT = 50001;
 
+std::vector<krpc::services::SpaceCenter::Node> generatedNodes;
 
 
 connection::connection() {
@@ -204,14 +205,55 @@ void connection::circularize() {
     double delta_v = v2 - v1;
     auto node = vessel.control().add_node(
         sc->ut() + vessel.orbit().time_to_apoapsis(), delta_v);
+    generatedNodes.push_back(node);
 }
+
+double connection::changePeriapsis(double finalPeriapsis, double burnRadius)
+{
+    bool apoBurn = false;
+    if ( std::abs(burnRadius - vessel.orbit().apoapsis()) < 5.0) {
+        burnRadius = vessel.orbit().apoapsis();
+        apoBurn = true;
+    }
+    double mu = vessel.orbit().body().gravitational_parameter();
+    double a = vessel.orbit().semi_major_axis();
+    double b = vessel.orbit().semi_minor_axis();
+    
+    //double v1 = std::sqrt(mu / a) * b / burnRadius;
+    //double v2 = std::sqrt(mu / a) * finalPeriapsis / burnRadius;
+    //double v1 = std::sqrt(mu * ((2.0 / burnRadius) - (1.0 / b)));
+    //double v2 = (std::sqrt(mu * ((2.0 / burnRadius) - (1.0 / finalPeriapsis))) + v1) / 2.0;
+    
+    
+    
+    double delta_v = std::sqrt((mu / burnRadius)) * ( (std::sqrt((2.0 * finalPeriapsis)/ (burnRadius + finalPeriapsis))) - 1.0 );
+    std::cerr << "delta v is " << delta_v << std::endl;
+    
+    if (apoBurn) {
+        auto node = vessel.control().add_node(
+            sc->ut() + vessel.orbit().time_to_apoapsis(), delta_v);
+        generatedNodes.push_back(node);
+        
+        return sc->ut() + vessel.orbit().time_to_apoapsis();
+    } else {
+        double e = vessel.orbit().eccentricity();
+        double tFinal = std::sqrt(std::pow(a, 3.0) / mu) * (2.0 * std::atan(std::sqrt((burnRadius - a * (1 - e)) / (a * (1 + e) - burnRadius))) - std::sqrt(std::pow(e, 2.0) - std::pow(1.0 - burnRadius / a, 2.0) ));
+        double tCurrent = std::sqrt(std::pow(a, 3.0) / mu) * (2.0 * std::atan(std::sqrt((shipTelemetry_height - a * (1 - e)) / (a * (1 + e) - shipTelemetry_height))) - std::sqrt(std::pow(e, 2.0) - std::pow(1.0 - shipTelemetry_height / a, 2.0) ));
+        std::cerr << "Tfinal is " << tFinal << " and tcurrent is " << tCurrent << std::endl;
+        auto node = vessel.control().add_node(
+            sc->ut() + (tFinal - tCurrent), delta_v);
+        generatedNodes.push_back(node);
+        return sc->ut() + (tFinal - tCurrent);
+    }
+}
+
 
 double connection::calculateNodeBurnTime() {
     // Calculate burn time (using rocket equation)
-    if (vessel.control().nodes().size() == 0) {
+    if (generatedNodes.size() == 0) {
         return 0;
     }
-    double delta_v = vessel.control().nodes().at(0).delta_v();
+    double delta_v = generatedNodes.at(0).delta_v();
     double F = vessel.available_thrust();
     double Isp = vessel.specific_impulse() * 9.82;
     double m0 = vessel.mass();
@@ -244,26 +286,104 @@ void connection::pointTowardsNode() {
 
 }
 
+std::vector<std::pair<krpc::services::SpaceCenter::Part, int>> parachuteList;
+
+bool connection::prepareParachuteList()
+{
+    parachuteList.clear();
+    std::vector<krpc::services::SpaceCenter::Part> parts = vessel.parts().all();
+    for (int i = 0; i < parts.size(); i++) {
+        if (parts.at(i).name() == "radialDrogue") {
+            parachuteList.push_back(std::make_pair(parts.at(i), 1));
+        } else if (parts.at(i).name() == "parachuteRadial") {
+            parachuteList.push_back(std::make_pair(parts.at(i), 2));
+        } else if (parts.at(i).name() == "parachuteDrogue") {
+            parachuteList.push_back(std::make_pair(parts.at(i), 0));
+        } else if (parts.at(i).name() == "parachuteSingle") {
+            parachuteList.push_back(std::make_pair(parts.at(i), 2));
+        } else if (parts.at(i).name() == "parachuteLarge") {
+            parachuteList.push_back(std::make_pair(parts.at(i), 2));
+        }
+    }
+    return (parachuteList.size() > 0);
+}
+
+
+bool connection::deployParachutesIfSafe()
+{
+    const double safeVelo0 = 550;
+    const double safeVelo1 = 424;
+    const double safeVelo2 = 264;
+    if (shipTelemetry_velocity < safeVelo0) {
+        for (auto i : parachuteList) {
+            if (i.second <= 0) {
+                i.second = 3;
+                i.first.parachute().deploy();
+            }
+        }
+    }
+    if (shipTelemetry_velocity < safeVelo1) {
+        for (auto i : parachuteList) {
+            if (i.second <= 1) {
+                i.second = 3;
+                i.first.parachute().deploy();
+            }
+        }
+    }
+    if (shipTelemetry_velocity < safeVelo2) {
+        for (auto i : parachuteList) {
+            if (i.second <= 2) {
+                i.second = 3;
+                i.first.parachute().deploy();
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+void connection::setWarpRate(int rate)
+{
+    sc->set_rails_warp_factor(rate);
+}
+
+
 void connection::warpTo(double time) {
     sc->warp_to(time);
 }
 
 double connection::getRemainingNodeBurn() {
-    if (vessel.control().nodes().size() == 0) {
+    if (generatedNodes.size() == 0) {
         return 0.0;
     }
-    auto node = vessel.control().nodes().at(0);
+    auto node = generatedNodes.at(0);
     auto remainingBurn = node.remaining_burn_vector();
     return shine_math::magnitude(remainingBurn);
 }
 
+void connection::clearAllNodes()
+{
+    generatedNodes.clear();
+    vessel.control().remove_nodes();
+}
+
+
 void connection::deleteNode(int nodeNum)
 {
-    if (vessel.control().nodes().size() < nodeNum) {
+    if (generatedNodes.size() <= nodeNum) {
         return;
     }
-    vessel.control().nodes().at(nodeNum).remove();
+    generatedNodes.at(nodeNum).remove();
 }
+
+// Basically self destruct
+void connection::stageAll()
+{
+    while (vessel.control().current_stage() > 0) {
+        vessel.control().activate_next_stage();
+    }
+}
+
 
 
 
